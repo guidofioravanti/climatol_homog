@@ -2,6 +2,7 @@ rm(list=objects())
 library("climatol")
 library("purrr")
 library("dplyr")
+library("tidyr")
 #funzioni extra per climatol
 source("climatol_help.R")
 

@@ -469,6 +469,8 @@ mydahstat<-function (varcli, anyi, anyf, anyip = anyi, anyfp = anyf, stat = "me"
 # eventualmente mascherate rispetto al flag 1 (ovvero riassegnando NA ai valori che nelle serie omogeneizzate hanno flag 1)  --------
 assembla<-function(param,annoi,annof,mask=TRUE){
   
+  #filePattern contiene la descrizione dei file .csv contenente i dati omogeneizzati. I file con i flag
+  #hanno lo stesso nome con estensione "-flg.csv" invece di ".csv"
   filePattern<-paste0("^",param,"_",annoi,"-",annof,"_.+[^-flg]\\.csv")
   
   list.files(pattern =filePattern )->nomiFile
@@ -476,13 +478,24 @@ assembla<-function(param,annoi,annof,mask=TRUE){
   
   purrr::map2(.x=nomiFile,.y=nomiFlagFile,.f = function(nserie,nflag){
     
-    readr::read_delim(nserie,delim=",",col_names=TRUE)->datiHomo
-    readr::read_delim(nflag,delim=",",col_names=TRUE)->datiFlag    
+    tryCatch({
+      readr::read_delim(nserie,delim=",",col_names=TRUE)
+    },error=function(e){
+      stop(sprintf("Errore lettura file %s",nserie))
+    })->datiHomo
     
-    stopifnot(nrow(datiHomo)==nrow(datiFlag))
+    tryCatch({
+      readr::read_delim(nflag,delim=",",col_names=TRUE)   
+    },error=function(e){
+      stop(sprintf("Errore lettura file %s",nflag))
+    })->datiFlag 
     
+    if(nrow(datiHomo)!=nrow(datiFlag)) stop("File dati e file flag hanno lunghezze differenti!")
     
+    #i file dati vengono mascherati solo se mask==TRUE altrimenti vengono restituiti così come sono.
+    #Di default vogliamo mascherare i dati ricostruiti da climatol e rimetterli come NA
     if(mask){
+      
       #convertiamo il flag 1 (valore infilled in un altro valore ad esempio 9) e poi convertiamo
       #il flag 0 e 2 in "1". Il nostro obiettivo è moltiplicare i valori della serie per il flag in modo che:
       # laddove il flag vale 1 il valore nella serie non cambia
@@ -498,7 +511,12 @@ assembla<-function(param,annoi,annof,mask=TRUE){
     
     datiHomo
     
-  }) %>% reduce(left_join,by=c("Date"="Date"))
+  }) %>% reduce(left_join,by=c("Date"="Date")) %>% separate(col=Date,into=c("yy","mm","dd"),sep="-")->dfOut
+  
+  #Qui va messa la parte che associa alle serie il codice stazione, lo stesso codice utilizzato per l'omogeneizzazione
+  
+  #return dfOut
+  dfOut
   
   
 }#fine assembla
