@@ -11,12 +11,12 @@ param<-"Tmax"
 ANNOI<-1961
 ANNOF<-2015
 #correggi va a FALSE se vogliamo omogeneizzare le serie, va a true se una volta omogeneizzate le serie mensili vogliamo correggere le serie giornaliere
-correggi<-TRUE
-creaMensili<-FALSE
+correggi<-FALSE
+creaMensili<-TRUE
 
 
 if(!correggi){
-  if(creaMensili) dd2m(varcli =param ,anyi = ANNOI,anyf = ANNOF,valm = 2,namax = 10,na.strings = NA,homog = FALSE,ini="1961-01-01")
+  if(creaMensili) dd2m(varcli =param ,anyi = ANNOI,anyf = ANNOF,valm = 2,namax = 10,na.strings = NA,homog = FALSE,ini=paste0(ANNOI,"-01-01"))
   homogen(varcli = paste0(param,"-m"),anyi =ANNOI,anyf = ANNOF,wd=c(200,200,100),snht1 = 25,snht2 = 25)
 }else{
   #correction of daily series
@@ -30,6 +30,4 @@ if(!correggi){
   #-flag 1 per gli NA riempiti 
   #-flag 2 per i dati corretti
   assembla(param,ANNOI,ANNOF,mask=TRUE)
-  
-  
 }
