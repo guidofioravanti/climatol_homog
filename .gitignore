@@ -1,0 +1,10 @@
+#tralascia file dati
+*.txt
+*.csv
+*.dat
+*.est
+#tralascia file generati da climatol
+*.pdf
+*.rda
+#tralascia directory
+*/
