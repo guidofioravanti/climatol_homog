@@ -6,5 +6,6 @@
 #tralascia file generati da climatol
 *.pdf
 *.rda
+*.RDS
 #tralascia directory
 */
