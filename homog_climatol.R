@@ -5,14 +5,17 @@ library("dplyr")
 library("tidyr")
 #funzioni extra per climatol
 source("climatol_help.R")
+source("ClimateData.R")
+source("ClimateObjects.R")
+source("wmo.R")
 
 
 param<-"Tmax"
 ANNOI<-1961
 ANNOF<-2015
 #correggi va a FALSE se vogliamo omogeneizzare le serie, va a true se una volta omogeneizzate le serie mensili vogliamo correggere le serie giornaliere
-correggi<-FALSE
-creaMensili<-TRUE
+correggi<-TRUE
+creaMensili<-FALSE
 
 
 if(!correggi){
@@ -29,5 +32,26 @@ if(!correggi){
   #-flag 0 (dato originale),
   #-flag 1 per gli NA riempiti 
   #-flag 2 per i dati corretti
-  assembla(param,ANNOI,ANNOF,mask=TRUE)
-}
+  assemblaHomog(param,ANNOI,ANNOF,mask=TRUE)->dfHomo
+  #dfHomo è un data.frame che contiene le serie omogeneizzate (solo le serie che arrivano alla fine del periodo di analisi)
+  
+  fileSerieOriginali<-paste0(param,"_",ANNOI,"-",ANNOF,"_raw.RDS")
+  nome_pdf<-paste0(param,"_",ANNOI,"-",ANNOF,"_serieAnnuali_homo.pdf")
+  
+  #grafico delle serie omogeneizzate. Se esiste il file RDS con le serie originali "raw" allora facciamo il grafico della serie
+  #originale (in blu) e della corrispondente serie omogeneizzata (in nero)
+  if(file.exists(fileSerieOriginali)){
+    
+    readRDS(fileSerieOriginali)->dfRaw
+    #param va passato in lower case per farlo riconoscere a ClimateData
+    grafico(x=dfHomo,parametro=tolower(param),nomeOut = nome_pdf,y=dfRaw)
+    
+  }else{
+
+    #serie originali non disponibili, facciamo grafico delle sole serie omogeneizzate
+    grafico(x=dfHomo,parametro=tolower(param),nomeOut = nome_pdf)    
+    
+  }
+    
+  
+}#fine if
