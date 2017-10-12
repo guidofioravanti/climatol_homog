@@ -145,7 +145,7 @@ disegna<-function(fun,serie,anni,nomeSerie,xlab,ylab){
   abline(a=coefficients(lmOut)[1],b=coefficients(lmOut)[2],col=lista$col,lty=2)
   
   #otteniamo i p-values
-  tidy(lmOut)->tabella
+  broom::tidy(lmOut)->tabella
   tabella[tabella$term=="anni",]$p.value->myp
   mtext(text = paste0(lista$nomeSerie," - pvalue: ",round(myp,2)),side = 3,line = lista$linea,at =lista$at,adj=0,family="Lato Black",cex = 0.8)
 
@@ -184,7 +184,7 @@ grafico<-function(x,parametro,nomeOut,...){
   
   #clipping della retta
   par(xpd=F)
-  
+
   tryCatch({
     
     purrr::walk(2:ncol(serieAnnual),.f=function(colonna){
@@ -194,11 +194,16 @@ grafico<-function(x,parametro,nomeOut,...){
       coredata(serieAnnual[,colonna])->serie
       disegna(fun="plot",anni=anni,serie=serie,nomeSerie=nomeSerie,xlab="",ylab=ylab)        
 
-      
       if(exists("yserieAnnual")){
 
-        coredata(yserieAnnual[,colonna])->seriey
-        disegna(fun="points",anni=anni,serie=seriey,nomeSerie=nomeSerie)        
+        grep(paste0("^",nomeSerie,"$"),names(yserieAnnual))->ycolonna
+        
+        if(length(ycolonna)){
+          coredata(yserieAnnual[,ycolonna])->seriey
+          disegna(fun="points",anni=anni,serie=seriey,nomeSerie=nomeSerie)        
+        }else{
+          warning(sprintf("Serie %s non trovata in dati raw",nomeSerie))
+        }#if su length(ycolonna)
         
       } 
       
@@ -467,15 +472,19 @@ mydahstat<-function (varcli, anyi, anyf, anyip = anyi, anyfp = anyf, stat = "me"
 
 # Crea un unico data frame con le serie omogeneizzate 
 # eventualmente mascherate rispetto al flag 1 (ovvero riassegnando NA ai valori che nelle serie omogeneizzate hanno flag 1)  --------
-assembla<-function(param,annoi,annof,mask=TRUE){
+assemblaHomog<-function(param,annoi,annof,mask=TRUE){
   
   #filePattern contiene la descrizione dei file .csv contenente i dati omogeneizzati. I file con i flag
   #hanno lo stesso nome con estensione "-flg.csv" invece di ".csv"
   filePattern<-paste0("^",param,"_",annoi,"-",annof,"_.+[^-flg]\\.csv")
   
   list.files(pattern =filePattern )->nomiFile
-  stringr::str_replace(nomiFile,"\\.csv","-flg.csv")->nomiFlagFile
+  #file _out.csv se presente va eliminato
+  nomiFile[!grepl(paste0("^",param,"_",annoi,"-",annof,"_out\\.csv"),nomiFile)]->nomiFile
   
+  #ricaviamo i corrispondenti file con i flag
+  stringr::str_replace(nomiFile,"\\.csv","-flg.csv")->nomiFlagFile
+
   purrr::map2(.x=nomiFile,.y=nomiFlagFile,.f = function(nserie,nflag){
     
     tryCatch({
@@ -499,23 +508,26 @@ assembla<-function(param,annoi,annof,mask=TRUE){
       #convertiamo il flag 1 (valore infilled in un altro valore ad esempio 9) e poi convertiamo
       #il flag 0 e 2 in "1". Il nostro obiettivo è moltiplicare i valori della serie per il flag in modo che:
       # laddove il flag vale 1 il valore nella serie non cambia
-      
+   
       datiFlag %>% 
         mutate(Value2=ifelse(Value==1,9,Value)) %>%
         mutate(Value3=ifelse(Value2!=9,1,9)) %>%
         mutate(Value4=ifelse(Value3==9,NA,1))->maschera
-      
+       
       datiHomo$Value*maschera$Value4->datiHomo$Value
     
     }#fine mask
     
+    #estraiamo il codice della serie
+    stringr::str_replace(stringr::str_replace(stringr::str_replace(nserie,paste0("^",param,"_",annoi,"-",annof,"_"),""),"-[0-9]+",""),"\\.csv","")->codiceSerie
+    names(datiHomo)[2]<-codiceSerie
+    print(codiceSerie)
     datiHomo
-    
+      
   }) %>% reduce(left_join,by=c("Date"="Date")) %>% separate(col=Date,into=c("yy","mm","dd"),sep="-")->dfOut
+
   
-  #Qui va messa la parte che associa alle serie il codice stazione, lo stesso codice utilizzato per l'omogeneizzazione
-  
-  #return dfOut
+  #return dfOut: contiene yy mm dd e le serie
   dfOut
   
   
