@@ -116,7 +116,7 @@ ANNOI<-1961
 ANNOF<-2015
 
 #Se vogliamo in output serie mensili:MONTHLY è TRUE, se vogliamo serie giornaliere allora MONTHLY è FALSE
-MONTHLY<-FALSE
+MONTHLY<-TRUE
 
 #Se vogliamo riempire gli NA mensili quando nessuna stazione ha valori disponibili dobbiamo porre: MONTHLY<-TRUE && REFILL_NA_MONTHLY<-TRUE
 #In generale: evitare riempir perche si potrebbero riempire anni conuno stesso identico valore
@@ -148,7 +148,6 @@ riduci(listaOut,monthlyJoin=MONTHLY)->daScrivere
 #con le serie giornaliere. Per le serie giornaliere Climatol dispone di strumenti per il refill dei dati. Lo stesso dicasi quando utilizzando 
 #le serie giornaliere e gli strumenti di Climatol si passa alle serie mensili. In sintesi: i mesi problematici vanno riempiti solo
 #quando a Climatol si passano serie mensili calcolate senza utilizzare gli strumenti del pacchetto.
-
 if(MONTHLY && REFILL_NA_MONTHLY) riempiNA(daScrivere)->daScrivere
 
 # Scrittura file dei dati -------------------------------------------------
