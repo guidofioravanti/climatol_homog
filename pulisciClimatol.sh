@@ -26,3 +26,4 @@ rm -rf Tm[ai][nx]*_out.csv
 
 #rimuove il file di testo con salvati i parametri utilizzati per eseguire homogen a livello mensile
 rm -rf parametri_homogen.txt
+
