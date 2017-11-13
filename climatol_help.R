@@ -89,8 +89,8 @@ scriviFile_dat<-function(x,nomeOut,file_monthly=TRUE,acmant=FALSE){
       
       #header per acmant
       if(acmant) cat(paste(names(x)[3],"\n"))
-    
-      purrr::walk(as.tibble(x[,primaColonna:ncol(x)]),.f=function(serie){
+
+      purrr::walk(as_tibble(x[,primaColonna:ncol(x)]),.f=function(serie){
       
         if(acmant) serie[is.na(serie)]<- -999.9
         
@@ -638,8 +638,14 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
           grep(regione,tolower(Aero$County))->righe
           #nord centro o sud?
           unique(Aero$area[righe][!is.na(Aero$area[righe])])->area
-          if(length(area)!=1) browser()
-
+          if(length(area)!=1){
+            if(regione=="bolzano"){
+              area<-"nord"
+            }else{  
+              browser()
+            }
+          }  
+            
         }else{
           
           unlist(stringr::str_split(cod,"_"))[2]->siteID
@@ -648,11 +654,11 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
           Aero$area[riga]->area
                               
         }
-        
+
         area
           
   })->area
-          
+
   #area a questo punto contiene "nord centro o sud" oppure contiene il nome della rete per ogni stazione
   stopifnot(all(!is.na(area)))    
 
@@ -664,7 +670,7 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
   purrr::map(seq(1,by=(numeroAnni*12),length.out = numeroSerie),.f=~(dat[.:(.+(numeroAnni*12)-1)])) %>% 
     reduce(cbind) %>% 
       as.data.frame) ->out  
-    
+  
   names(out)<-c("yy","mm",codice)
 
   #nomiArea può essere un solo nome (nomeRete) o potrebbe essere ad esempio nord centro e sud
