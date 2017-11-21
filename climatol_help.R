@@ -214,7 +214,7 @@ grafico<-function(x,parametro,nomeOut,...){
 
   tryCatch({
     
-    purrr::walk(2:ncol(serieAnnual),.f=function(colonna){
+    purrr::walk(1:ncol(serieAnnual),.f=function(colonna){
       
       names(serieAnnual)[colonna]->nomeSerie
       
