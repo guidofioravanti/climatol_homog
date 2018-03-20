@@ -37,10 +37,10 @@ creaClimatolData<-function(nomeFile,parametro,annoI,annoF,returnMonthly=TRUE)
   aggregaCD(serieDaily,max.na = 10,rle.check = TRUE,max.size.block.na = 3)->serieMonthly
 
   #aggrega a òivello annuale
-  aggregaCD(serieMonthly,ignore.par=FALSE,max.na = 3,rle.check = TRUE,max.size.block.na = 3,seasonal=TRUE)->serieAnnual  
+  aggregaCD(serieMonthly,ignore.par=FALSE,max.na = 10,rle.check = TRUE,max.size.block.na = 10,seasonal=TRUE)->serieAnnual  
   
   #la serie è abbastanza completa e continua??
-  checkSeriesValidity2(x = serieAnnual,max.size.block.na = 4,percentualeAnniPresenti = 90,minLen = 15)->ris
+  checkSeriesValidity2(x = serieAnnual,max.size.block.na = 10,percentualeAnniPresenti = 80,minLen = 10)->ris
   
   if(is.null(ris)) return(NULL)
   
@@ -131,10 +131,12 @@ scriviFile_est<-function(x,ana,nomeOut,file_monthly=TRUE){
     
     #devo avere solo regione e codice stazione, quindi due elementi
     stopifnot(length(splitted)==2)
+
     
-    which(ana$SiteID==splitted[2] & ana$Regione==splitted[1])->riga
+    which(ana$SiteId==as.integer(splitted[2]) & ana$regione==splitted[1])->riga
     #nel data.frame dell'anagrafica devo avere solo una riga corrispondente a Regione e codice
     stopifnot(length(riga)==1)
+    #if(length(riga)!=1) browser()
     
     ana[riga,]$Longitude->lon   
     ana[riga,]$Latitude->lat    
@@ -214,7 +216,7 @@ grafico<-function(x,parametro,nomeOut,...){
 
   tryCatch({
     
-    purrr::walk(1:ncol(serieAnnual),.f=function(colonna){
+    purrr::walk(2:ncol(serieAnnual),.f=function(colonna){
       
       names(serieAnnual)[colonna]->nomeSerie
       
@@ -566,6 +568,9 @@ assemblaHomog<-function(param,annoi,annof,mask=TRUE){
 # Acmant3 richiede per l'omogeneizzazione dei mensili file dati analoghi al file ".dat" di climatol, ma:
 # -in climatol il file ".dat" contiene i dati di tutte le stazioni, mentre ACMANT3 richiede un file per ogni stazione
 # -in climatol ogni riga del file ".dat" non contiene l'informazione dell'anno a cui la riga si riferisce, in ACMANT3 ogni riga ha compe primo dato l'anno
+#nomeRete deve essere una stringa di 4 caratteri
+
+#Il file di input è il file dei dati mensili prodotto da Climatol
 toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
 
 
@@ -574,8 +579,9 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
   stopifnot( ( is.numeric(annoi) && is.numeric(annof) ) &&
                is.character(fileClimatol) &&
                is.character(nomeRete) &&
-               is.logical(splitRete ) && 
-               nchar(nomeRete)==4 )
+               is.logical(splitRete )) 
+  
+  if(nchar(nomeRete)!=4 ) stop("nomeRete deve essere una stringa di 4 caratteri!")
   
   #per ACMANT3 vogliamo lavorare con le stesse serie mensili di climatol, quindi carichiamo il file ".dat" prodotto da climatol  
   if(!file.exists(fileClimatol)){
@@ -649,7 +655,7 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
         }else{
           
           unlist(stringr::str_split(cod,"_"))[2]->siteID
-          which(Aero$SiteID==siteID)->riga
+          which(Aero$SiteId==siteID)->riga
           stopifnot(length(riga)==1)
           Aero$area[riga]->area
                               
@@ -702,192 +708,4 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
     
 }#fine toACMANT3monthly
 
-
-
-
-
-# funzione aggiustata per scrittura file acmant daily: questa funzione viene usata solo da "toACMANT3daily"
-scriviFile_dat_daily_acmant<-function(x,nomeOut){
-  
-  unique(x$yy)->anni
-  
-  primaColonna<-3
-  
-  estensione<-".txt"
-  
-  sink(paste0(nomeOut,estensione),append=FALSE)
-
-  tryCatch({
-    
-    #header per acmant
-    cat(paste(names(x)[3],"\n"))
-    
-    purrr::walk(as_tibble(x[,primaColonna:ncol(x)]),.f=function(serie){
-      
-      serie[is.na(serie)]<- -999.9
-      
-      for(yy in anni){
-        
-        for( mm in c("01","02","03","04","05","06","07","08","09","10","11","12")){
-          
-            paste(paste(as.character(round(serie[x$yy==yy & x$mm==mm],1)),collapse = " "),"\n")->stringa
-            
-            #formato per ACMANT3, stesso di climatol ma con anno iniziale
-            cat(paste(yy,mm,stringa,sep=" "))
-
-          
-        }#ciclo for su mm
-        
-      }#fine ciclo for su yy
-      
-    })
-    
-    sink()
-  },error=function(e){
-    sink()
-  }) #fine tryCatch
-  
-}#fine scriviFile_dat
-
-
-
-
-# Prepara file per ACMANT3 partendo dal file dei dati giornalieri -------------
-#La funzione serve per scrivere i dati nel formato richiesto da ACMANT3 per il controllo e l'omogeneizzazione dei giornalieri
-toACMANT3daily<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
-  
-  
-  #nomeRete lo fissiamo a 4 perchè poi aggiungiamo il numero della sottorete, per un totale di 5 caratteri come richiesto da
-  #ACMANT
-  stopifnot( ( is.numeric(annoi) && is.numeric(annof) ) &&
-               is.character(fileClimatol) &&
-               is.character(nomeRete) &&
-               is.logical(splitRete ) && 
-               nchar(nomeRete)==4 )
-  
-  #per ACMANT3 vogliamo lavorare con le stesse serie mensili di climatol, quindi carichiamo il file ".dat" prodotto da climatol  
-  if(!file.exists(fileClimatol)){
-    warning(sprintf("File %s non trovato",fileClimatol))
-    return()
-  }
-  
-  #lettura dati
-  dat <- scan(fileClimatol, na.strings = NA)
-
-  
-  numeroAnni<-annof-annoi+1
-  length(dat)->numeroDati
-  seq.Date(as.Date(paste0(annoi,"-01-01")),as.Date(paste0(annof,"-12-31")),by="day")->calendario
-  length(calendario)->lenCal
-  numeroSerie<-numeroDati/lenCal
-  
-  #numeroSerie deve essere un intero
-  stopifnot(floor(numeroSerie)==numeroSerie)
-  
-  #Lettura del file anagrafica, file ".est" di climatol 
-  est <- scan(stringr::str_replace(fileClimatol,"\\.dat","\\.est") , na.strings = NA,what="character")
-
-  #le colonne nel file est sono 5
-  length(est)/5->numeroRighe
-  #il numero delle righe nel file .est deve == numeroSerie
-  stopifnot(numeroRighe==numeroSerie)
-  
-  as.numeric(est[seq(1,by =5,length.out = numeroSerie)])->longitude
-  as.numeric(est[seq(2,by =5,length.out = numeroSerie)])->latitude
-  as.integer(est[seq(3,by =5,length.out = numeroSerie)])->quota
-  as.character(est[seq(4,by =5,length.out = numeroSerie)])->codice
-  as.character(est[seq(5,by =5,length.out = numeroSerie)])->nome
-  
-  #creiamo area fittizia, assegnando ad area nomeRete: se splitRete ==FALSE allora tutte le stazioni appartengono 
-  #alla medesima area e il programma produce file con un nome file che non distingue tra sottoaree distinte
-  area<-rep(nomeRete,numeroSerie)
-  
-  #se splitRete ==TRUE allora area identifichierà ogni stazione in nord centro e sud, utilizzando il file anagrafica dell'aeronautica
-  #Sulla base dell'appartenenza di una serie all'area nord, centro e sud, distingueremo i nomi dei file delle serie. Perchè utilizzare
-  #l'anagrafica dell'aeronautica? Perchè è l'unico modo per associare a una stazione dell'aeronautica un'area nord, centro e sud
-  
-  
-  #ACMANT3 richiede per ogni rete un numero di stazioni tra 4 e 99. Quando la rete preparata per climatol
-  #contiene un numero superiore di stazioni, dobbiamo creare delle sottoreti. Se splitRete==TRUE
-  #cerchiamo un file che ha come nome -> fileClimatol ma come estensione non ".est" (anagrafica per climatol)
-  #ma acmant. Questo file è uguale al file ".est" ma con una colonna in più: questa colonna indica il codice
-  #della sottorete. Ad esempio: se la rete Cluster1 ha 146 stazioni dobbiamo spezzarla. Per spezzarla
-  #cerchiamo il file con estensione ".climatol" e cerchiamo l'ultima colonna che riportà "1" per tutte le stazioni
-  #della rete Cluster1 che appartengono alla prima sottorete, "2" per tutte le stazioni della rete Cluster1 che appartengono
-  #alla seconda sottorete. Se splitRete==FALSE, allora verrà cercato il file ".est" perchè in tal caso mi servono solo i metadati
-  #delle stazioni
-  if(splitRete){    
-    
-    readr::read_delim("reg.aeronautica.info.csv",delim=";",col_names = TRUE)->Aero
-    purrr::map_chr(codice,function(cod){
-      
-      stringr::str_replace(tolower(cod),"_.+$","")->regione
-      
-      if(regione!="aeronautica"){
-        
-        grep(regione,tolower(Aero$County))->righe
-        #nord centro o sud?
-        unique(Aero$area[righe][!is.na(Aero$area[righe])])->area
-        if(length(area)!=1){
-          if(regione=="bolzano"){
-            area<-"nord"
-          }else{  
-            browser()
-          }
-        }  
-        
-      }else{
-        
-        unlist(stringr::str_split(cod,"_"))[2]->siteID
-        which(Aero$SiteID==siteID)->riga
-        stopifnot(length(riga)==1)
-        Aero$area[riga]->area
-        
-      }
-      
-      area
-      
-    })->area
-    
-    #area a questo punto contiene "nord centro o sud" oppure contiene il nome della rete per ogni stazione
-    stopifnot(all(!is.na(area)))    
-    
-    
-  } #if splitRete
-
-  #crea data frame "out" con le serie mensili, partendo dai valori mensili creati da climatol
-  cbind(data.frame(cal=calendario) %>% tidyr::separate(col=cal,into=c("yy","mm","dd"),sep="-"),
-        purrr::map(seq(1,by=(lenCal),length.out = numeroSerie),.f=~(dat[.:(.+(lenCal)-1)])) %>% 
-          reduce(cbind) %>% 
-          as.data.frame) ->out  
-  
-  names(out)<-c("yy","mm","dd",codice)
-  
-  #nomiArea può essere un solo nome (nomeRete) o potrebbe essere ad esempio nord centro e sud
-  unique(area)->nomiArea
-
-  for(ii in 1:length(nomiArea) ){
-    
-    which(area==nomiArea[ii])->qualiColonne
-    stopifnot(length(qualiColonne)!=0)
-    #per essere in linea con names(out) che contiene yy e mm
-    qualiColonne<-qualiColonne+3
-    progressivo<-1
-    
-    #A questo punto possiamo utilizzare la funzione "scriviFile_dat" per creare i file (uno per ogni serie) in formato "climatol" con l'aggiunta
-    #dell'anno (prependAnno=TRUE)
-    purrr::walk(qualiColonne,.f=function(colonna){
-      
-      #ogni nome file inizia con una stringa di 5 caratteri--> nomeRete
-      #a cui segue un indice crescente 01, 02, 03....
-      paste0(nomeRete,ii,str_pad(progressivo,width = 2,side = "left",pad ="0"))->nomeAcmant
-      scriviFile_dat_daily_acmant(out[,c(1,2,colonna)],nomeOut = nomeAcmant)
-      progressivo<<-progressivo+1
-      
-    })#fine purrr::walk      
-    
-  }#fien ciclo for  
-  
-  
-}#fine toACMANT3daily
 
