@@ -7,7 +7,7 @@ library("broom")
 library("stringr")
 library("imputeTS")
 source("ClimateObjects.R")
-source("ClimateData_24febbraio2017.R")
+source("ClimateData.R")
 source("climatol_help.R")
 
 
@@ -23,15 +23,7 @@ leggiAna<-function(nomeFile){
     read_delim(file=nomeFile,delim=";",col_names=TRUE)
   },error=function(e){
     stop(sprintf("Errore lettura file anagrafica %s",nomeFile))
-  })->ana
-  
-  #dobbiamo aggiustare i nomi nel file???
-  if("County" %in% names(ana) && !("Regione" %in% names(ana))){
-    names(ana)[grep("County",names(ana))]<-"Regione"
-  }
-  
-  ana  
-  
+  })
   
 }#fine leggiAna
 
@@ -99,8 +91,8 @@ riempiNA<-function(x){
 
 
 # INIZIO PROGRAMMA --------------------------------------------------------
-REGIONE<-"Cluster1" #potrebbe anche essere regione Lazio...
-FILE_ANAGRAFICA<-"cluster1_tmax_anagrafica.csv"
+REGIONE<-"Cluster4" #potrebbe anche essere regione Lazio...
+FILE_ANAGRAFICA<-"anagrafica_cluster_4_tmax.csv"
 
 #directory in cui si trovano le varie subdirectory con le serie giornaliere da elaborare.
 #Si tratta (ad esempio) delle directory in cui sono stati eseguiti i controlli spaziali. Ogni directory ha
@@ -116,7 +108,7 @@ ANNOI<-1961
 ANNOF<-2015
 
 #Se vogliamo in output serie mensili:MONTHLY è TRUE, se vogliamo serie giornaliere allora MONTHLY è FALSE
-MONTHLY<-TRUE
+MONTHLY<-FALSE
 
 #Se vogliamo riempire gli NA mensili quando nessuna stazione ha valori disponibili dobbiamo porre: MONTHLY<-TRUE && REFILL_NA_MONTHLY<-TRUE
 #In generale: evitare riempir perche si potrebbero riempire anni conuno stesso identico valore
@@ -131,11 +123,27 @@ purrr::partial(...f=creaClimatolData,annoI=ANNOI,annoF=ANNOF)->creaClimatolData_
 
 #la colonna percorsoSerie contiene la posizione (directy) della serie in anagrafica
 #Facciamo affidamento che le subdirectory in DIRSERIE abbiano un nome analogo a quello che compare in anagrafica (Regione)
-leggiAna(nomeFile = FILE_ANAGRAFICA) %>% 
-  mutate(percorsoSerie=paste0(DIRSERIE,"/",Regione,"/",SiteID,".txt"))->ana
+leggiAna(nomeFile = FILE_ANAGRAFICA)->ana
+
+#crea il percorso di directory dove trovare il dato giornaliero
+purrr::map_chr(ana$regione,.f=function(rr){
+  
+  list.files(pattern=paste0("^spatial_controls_",rr,"_.+$"),include.dirs = TRUE)->dirDati
+  stopifnot(length(dirDati)==1)
+  
+  dirDati
+  
+})->listaDirDati
+
+ana$percorsoSerie<-paste0("./",listaDirDati,"/",ana$SiteId,".txt")
+
+# %>% 
+#   mutate(percorsoSerie=paste0(DIRSERIE,"/",regione,"/",SiteId,".txt"))->ana
 
 #listaOut contiene serie mensili o serie giornaliere. Sono serie abbastanza continue e complete (vedere codice). In pratica abbiamo filtrato
 #le serie, eliminando serie con troppi buchi
+#Marzo 2018: siccome già a priori le serie sono state controllarte in termini di completezza, dentro creaClimatolData_ii_ff mttiamo dei controlli molto laschi in modo
+#di non filtrare ulteriormente le serie che passiamo
 purrr::map(ana$percorsoSerie,.f=creaClimatolData_ii_ff,parametro=PARAM,returnMonthly=MONTHLY) %>% compact->listaOut
 
 if(!length(listaOut)) stop("Nessuna serie idonea")
@@ -150,9 +158,23 @@ riduci(listaOut,monthlyJoin=MONTHLY)->daScrivere
 #quando a Climatol si passano serie mensili calcolate senza utilizzare gli strumenti del pacchetto.
 if(MONTHLY && REFILL_NA_MONTHLY) riempiNA(daScrivere)->daScrivere
 
+
+#I nomi delle stazioni debbono essere: regione.codice, la parte che segue va aggiustata di volta in volta, in base a come sono stati letti i file e come
+#compaiono i loro nomi nella variabile percorsoSerie. In questo caso le colonne hanno forma: "spatial_controls_piemonte_febbraio2017_serieFino_30"con il terzo elemento e il sesto
+#che rappresentano rispettivamente la regione e il codice della stazione (SiteID)
+purrr::map(names(daScrivere)[4:ncol(daScrivere)],.f=~(unlist(str_split(.,"_")))) %>% purrr::map_int(.,length)->lunghezza
+
+stopifnot(all(lunghezza==6)) #sei elementi nel nome
+purrr::map(names(daScrivere)[4:ncol(daScrivere)],.f=~(unlist(str_split(.,"_")))) %>% purrr::map_chr(.,3)->NOMI_REGIONI
+purrr::map(names(daScrivere)[4:ncol(daScrivere)],.f=~(unlist(str_split(.,"_")))) %>% purrr::map_chr(.,6)->CODICI_REGIONI
+
+names(daScrivere)[4:ncol(daScrivere)]<-paste0(NOMI_REGIONI,"_",CODICI_REGIONI)
+#fine parte per fissare i nomi
+
+
 # Scrittura file dei dati -------------------------------------------------
 nome_dat<-paste0(Hmisc::capitalize(PARAM),"_",ANNOI,"-",ANNOF)
-scriviFile_dat(x=daScrivere,nomeOut=nome_dat,file_monthly=MONTHLY)
+scriviFile_dat(x=daScrivere,nomeOut=nome_dat,file_monthly=MONTHLY,acmant=FALSE) 
 
 #scrivi gli stessi dati in formato RDS, come un normale dataframe invece che nel formato richiesto da climatol
 #Questi dati risulteranno utili nel momento in cui vorremo confrontare i dati omogeneizzati con quelli di partenza
