@@ -93,7 +93,7 @@ scriviFile_dat<-function(x,nomeOut,file_monthly=TRUE,acmant=FALSE){
       purrr::walk(as_tibble(x[,primaColonna:ncol(x)]),.f=function(serie){
       
         if(acmant) serie[is.na(serie)]<- -999.9
-        
+
         for(yy in anni){
       
           paste(paste(as.character(round(serie[x$yy==yy],1)),collapse = " "),"\n")->stringa
@@ -117,8 +117,54 @@ scriviFile_dat<-function(x,nomeOut,file_monthly=TRUE,acmant=FALSE){
       
 }#fine scriviFile_dat
 
+############################################################################
+#variazione della funzione sopra per scrittura dei file acmant in formato giornaliero
+# Scrittura file serie mensili/giornaliere, file .dat ---------------------
+#prependAnno va TRUE se si vogliono scrivere i dati per climatol
+############################################################################
+scriviFile_dat_acmant_daily<-function(x,nomeOut){
+  
+  unique(x$yy)->anni
+  
+  primaColonna<-4
+  
+  ".txt"->estensione
+  
+  sink(paste0(nomeOut,estensione),append=FALSE)
 
+  tryCatch({
+    
+    #header per acmant
+    cat(paste(names(x)[4],"\n"))
+    
+    serie<-x[[4]]
+    serie[is.na(serie)]<- -999.9
+    mesi<-stringr::str_pad(seq(1,12),pad="0",side="left",width=2)  
+    
+      for(yy in anni){
+        
+        for(mm in mesi){
+        
+          paste(paste(as.character(round(serie[x$yy==yy & x$mm==mm ],1)),collapse = " "),"\n")->stringa
+          #formato per ACMANT3, stesso di climatol ma con anno iniziale
+          cat(paste(yy,mm,stringa,sep=" "))
+
+        }#ciclo for in mese    
+        
+      }#fine ciclo for
+      
+    sink()
+  },error=function(e){
+    sink()
+  }) #fine tryCatch
+  
+}#fine scriviFile_dat_acmant_daily
+
+
+
+############################################################################
 # Scrivi file coordinate, file .est ---------------------------------------
+############################################################################
 scriviFile_est<-function(x,ana,nomeOut,file_monthly=TRUE){
   
   ifelse(file_monthly,3,4)->primaColonna  
@@ -708,4 +754,78 @@ toACMANT3monthly<-function(fileClimatol,annoi,annof,nomeRete,splitRete=TRUE){
     
 }#fine toACMANT3monthly
 
+
+
+
+
+# Prepara file per ACMANT3 partendo dal file dei dati giornalieri -------------
+#ACMANT3 lavora sia sui file a livello mensile che a livello giornaliero
+#Per l'omogeneizzazione dei giornalieri file dati analoghi ai file mensili di ACMANT3:
+#ogni riga ha come primi due dati l'anno e il mese
+
+#Il file di input è un data frame con colonne yy,mm,dd e poi colonne dati giornalieri per stazione
+toACMANT3daily<-function(df,annoi,annof,nomeRete,fileClimatol){
+  
+  
+  #nomeRete lo fissiamo a 4 perchè poi aggiungiamo il numero della sottorete, per un totale di 5 caratteri come richiesto da
+  #ACMANT
+  stopifnot( ( is.numeric(annoi) && is.numeric(annof) ) &&
+               is.character(fileClimatol) &&
+               is.character(nomeRete) )
+  
+  if(nchar(nomeRete)!=5 ) stop("nomeRete deve essere una stringa di 5 caratteri!") #qui passiamo nomeRete già con 5 caratteri
+  
+  #per ACMANT3 vogliamo lavorare con il file ".est" prodotto da climatol, che contiene l'anagrafica delle stazioni 
+  #In realtà si chiama fileClimatol per omogeneità con il programma toACMANT3monthly. Basta che sia
+  #un file con l'anagrafica delle stazioni
+  if(!file.exists(fileClimatol)){
+    warning(sprintf("File .est %s non trovato",fileClimatol))
+    return()
+  }
+  
+  
+  #Lettura del file anagrafica, file ".est" di climatol 
+  est <- scan(fileClimatol, na.strings = NA,what="character")  
+
+  #le colonne nel file est sono 5
+  length(est)/5->numeroRighe  
+    
+  #il numero delle righe nel file .est deve == numeroSerie
+  numeroSerie<-numeroRighe
+  
+  numeroAnni<-annof-annoi+1
+  
+  as.numeric(est[seq(1,by =5,length.out = numeroSerie)])->longitude
+  as.numeric(est[seq(2,by =5,length.out = numeroSerie)])->latitude
+  as.integer(est[seq(3,by =5,length.out = numeroSerie)])->quota
+  as.character(est[seq(4,by =5,length.out = numeroSerie)])->codice #tutti i codici delle stazioni
+  as.character(est[seq(5,by =5,length.out = numeroSerie)])->nome
+  
+  #creiamo area fittizia, assegnando ad area nomeRete: se splitRete ==FALSE allora tutte le stazioni appartengono 
+  #alla medesima area e il programma produce file con un nome file che non distingue tra sottoaree distinte
+  area<-rep(nomeRete,numeroSerie)
+  
+  
+  purrr::iwalk(codice,.f=function(.x,.y){
+    
+    .x->codiceStazione
+    .y->progressivo
+    
+    #cerco nel dataframe la stazione che ha codice "qualeCodice"
+    which(names(df) %in% codiceStazione)->qualeColonna
+    #non trovo la colonna nel file dati, passo oltre
+    if(!length(qualeColonna)) {sprintf("Il codice $s non è nel file dati, per questa stazione non verrà prodotto output!",codiceStazione); return()}
+    if(length(qualeColonna)>1) stop(sprintf("Il codice $s è presente in più colonne nel file dati, mi fermo!",codiceStazione))
+
+
+    #ogni nome file inizia con una stringa di 5 caratteri--> nomeRete
+    #a cui segue un indice crescente 01, 02, 03....
+    paste0(nomeRete,str_pad(progressivo,width = 2,side = "left",pad ="0"))->nomeAcmant
+    #scriviFile_dat_acmant_daily analoga a scriviFile_dat ma riscritta per tener conto anche del giorno
+    scriviFile_dat_acmant_daily(df[,c(1,2,3,qualeColonna)],nomeOut = nomeAcmant)
+
+  })#fine purrr::walk      
+
+  
+}#fine toACMANT3daily
 
