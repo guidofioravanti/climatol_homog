@@ -128,7 +128,7 @@ scriviFile_dat_acmant_daily<-function(x,nomeOut){
   
   primaColonna<-4
   
-  ".txt"->estensione
+  "d.txt"->estensione
   
   sink(paste0(nomeOut,estensione),append=FALSE)
 
@@ -147,7 +147,7 @@ scriviFile_dat_acmant_daily<-function(x,nomeOut){
         
           paste(paste(as.character(round(serie[x$yy==yy & x$mm==mm ],1)),collapse = " "),"\n")->stringa
           #formato per ACMANT3, stesso di climatol ma con anno iniziale
-          cat(paste(yy,mm,stringa,sep=" "))
+          cat(paste(yy,as.integer(mm),stringa,sep=" "))
 
         }#ciclo for in mese    
         
